@@ -16,7 +16,7 @@ def moving_average(values: np.array, window: int):
 
 
 x, y = ts2xy(load_results('log/'), "timesteps")
-print(x, y)
+print(x, y) 
 y = moving_average(y, window=100)
 x = x[len(x) - len(y):]
 fig = plt.figure('Learning Curve Smoothed')

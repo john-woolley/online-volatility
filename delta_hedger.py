@@ -62,10 +62,11 @@ class DeltaHedger(gym.Env):
         expiry=252,
         n_lags=10,
         transaction_cost=0.0025,
+        test=False
     ):
         super().__init__()
         self.data = data
-        if expiry == -1:
+        if test:
             self.periods = [self.data]
         else:
             self.periods = [
@@ -115,10 +116,11 @@ class DeltaHedger(gym.Env):
         else:
             self.period = self.periods[0]
         self.spot = self.period["Close"].iloc[0]
-        self.strike = self.spot
+        self.rate = 0.05
+        self.strike = self.spot * np.exp(self.rate)
         self.time_to_expiry = len(self.period)
         self.volatility = self.period["volatility"].iloc[0]
-        self.rate = 0.05
+
         self.put_option = PutOption(self.strike, 1)
         self.call_option = CallOption(self.strike, 1)
         self.straddle_size = 100
@@ -171,10 +173,7 @@ class DeltaHedger(gym.Env):
             + amount * self.spot * self.transaction_cost
         )
         if (
-            (
-                abs(targeted_delta) < 5
-                or abs(targeted_delta) < abs(self.portfolio_delta)
-            )
+            (abs(targeted_delta) < 5 or abs(targeted_delta) < abs(self.portfolio_delta))
             and (self.current_portfolio_value > targeted_cost)
             and self.balance > targeted_cost
         ):
@@ -248,11 +247,7 @@ class DeltaHedger(gym.Env):
     def _get_observation(self):
         return self.state_buffer
 
-    def render(
-        self,
-        action,
-        mode="human",
-    ):
+    def render(self, action, mode="human"):
         current_date = self.period.index[self.current_step]
         today_action = "buy" if action[0] > 0 else "sell"
         today_size = action[0]
@@ -310,7 +305,7 @@ if __name__ == "__main__":
     model_train = PPO.load("ppo_delta_hedger", env=env)
     model_train.learn(total_timesteps=10000, progress_bar=True)
     model_train.save("ppo_delta_hedger")
-    env_test = DeltaHedger(test, expiry=252)
+    env_test = DeltaHedger(test, expiry=252, test=True)
     model_test = PPO.load("ppo_delta_hedger", env=env_test)
     vec_env = model_test.get_env()
     obs = vec_env.reset()
@@ -322,4 +317,6 @@ if __name__ == "__main__":
             obs, state=lstm_states, episode_start=episode_starts
         )
         obs, reward, done, info = vec_env.step(action)
+        if done:
+            break
     env_test.render_df.to_csv("ppo_delta_hedger.csv")
