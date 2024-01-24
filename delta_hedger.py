@@ -187,11 +187,11 @@ class DeltaHedgerFX(gym.Env):
 
     @property
     def current_portfolio_value(self):
-        return self.balance - self.call_value - self.put_value + self.hedge_value
+        return self.balance + self.put_value + self.hedge_value
 
     @property
     def options_delta(self):
-        return -(self.call_delta + self.put_delta)
+        return self.put_delta
 
     @property
     def portfolio_delta(self):
@@ -231,23 +231,22 @@ class DeltaHedgerFX(gym.Env):
             self.spot,
             self.volatility,
             self.expiry / 252,
-            self.usd_rate,
             self.jpy_rate,
+            self.usd_rate,
         )
         self.call_option = GarmanKohlhagenCall(
             self.strike,
             self.spot,
             self.volatility,
             self.expiry / 252,
-            self.usd_rate,
             self.jpy_rate,
+            self.usd_rate,
         )
         self.straddle_size = 100
         self.call_value = self.call_option.price * self.straddle_size
         self.put_value = self.put_option.price * self.straddle_size
         self.initial_balance = (
-            self.put_value
-            + self.call_value
+            -self.put_value
             + self.initial_balance_multiplier * self.spot
         )
         self.balance = self.initial_balance
@@ -309,10 +308,10 @@ class DeltaHedgerFX(gym.Env):
         self.prev_call_value = self.call_value
         self.tau -= 1 / 252
         self.put_option.update(
-            self.spot, self.volatility, self.tau, self.usd_rate, self.jpy_rate
+            self.spot, self.volatility, self.tau,  self.jpy_rate, self.usd_rate,
         )
         self.call_option.update(
-            self.spot, self.volatility, self.tau, self.usd_rate, self.jpy_rate
+            self.spot, self.volatility, self.tau,  self.jpy_rate, self.usd_rate,
         )
         self.call_value = self.call_option.price * self.straddle_size
         self.put_value = self.put_option.price * self.straddle_size
