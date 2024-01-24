@@ -12,49 +12,146 @@ import pandas as pd
 from scipy.stats import norm
 
 
-class PutOption:
-    def __init__(self, strike, time_to_expiry) -> None:
+class GarmanKohlhagenOption:
+    def __init__(
+        self, strike, spot, volatility, time_to_expiry, domestic_rate, foreign_rate
+    ) -> None:
         self.strike = strike
-        self.time_to_expiry = time_to_expiry
+        self.spot = spot
+        self.domestic_rate = domestic_rate
+        self.foreign_rate = foreign_rate
+        self.volatility = volatility
+        self.tau = time_to_expiry
 
-    def price(self, spot, volatility, rate):
-        d1 = (
-            np.log(spot / self.strike) + (0.5 * volatility**2) * self.time_to_expiry
-        ) / (volatility * np.sqrt(self.time_to_expiry))
-        d2 = d1 - volatility * np.sqrt(self.time_to_expiry)
-        return self.strike * np.exp(-rate * self.time_to_expiry) * norm.cdf(
-            -d2
-        ) - spot * norm.cdf(-d1)
+    @property
+    def d1(self):
+        return (
+            np.log(self.spot / self.strike)
+            + (self.domestic_rate - self.foreign_rate + 0.5 * self.volatility**2)
+            * self.tau
+        ) / (self.volatility * np.sqrt(self.tau))
 
-    def delta(self, spot, volatility):
-        d1 = (
-            np.log(spot / self.strike) + (0.5 * volatility**2) * self.time_to_expiry
-        ) / (volatility * np.sqrt(self.time_to_expiry))
-        return -norm.cdf(-d1)
+    @property
+    def d2(self):
+        return self.d1 - self.volatility * np.sqrt(self.tau)
+
+    def update(self, spot, volatility, time_to_expiry, domestic_rate, foreign_rate):
+        self.spot = spot
+        self.volatility = volatility
+        self.tau = time_to_expiry
+        self.domestic_rate = domestic_rate
+        self.foreign_rate = foreign_rate
 
 
-class CallOption:
-    def __init__(self, strike, time_to_expiry) -> None:
+class GarmanKohlhagenCall(GarmanKohlhagenOption):
+    def __init__(
+        self, strike, spot, volatility, time_to_expiry, domestic_rate, foreign_rate
+    ) -> None:
         self.strike = strike
-        self.time_to_expiry = time_to_expiry
+        self.spot = spot
+        self.domestic_rate = domestic_rate
+        self.foreign_rate = foreign_rate
+        self.volatility = volatility
+        self.tau = time_to_expiry
 
-    def price(self, spot, volatility, rate):
-        d1 = (
-            np.log(spot / self.strike) + (0.5 * volatility**2) * self.time_to_expiry
-        ) / (volatility * np.sqrt(self.time_to_expiry))
-        d2 = d1 - volatility * np.sqrt(self.time_to_expiry)
-        return spot * norm.cdf(d1) - self.strike * np.exp(
-            -rate * self.time_to_expiry
-        ) * norm.cdf(d2)
+    @property
+    def price(self):
+        return np.exp(-self.foreign_rate * self.tau) * self.spot * norm.cdf(
+            self.d1
+        ) - np.exp(-self.domestic_rate * self.tau) * self.strike * norm.cdf(self.d2)
 
-    def delta(self, spot, volatility):
-        d1 = (
-            np.log(spot / self.strike) + (0.5 * volatility**2) * self.time_to_expiry
-        ) / (volatility * np.sqrt(self.time_to_expiry))
-        return norm.cdf(d1)
+    @property
+    def delta(self):
+        return norm.cdf(self.d1)
 
 
-class DeltaHedger(gym.Env):
+class GarmanKohlhagenPut(GarmanKohlhagenOption):
+    def __init__(
+        self, strike, spot, volatility, time_to_expiry, domestic_rate, foreign_rate
+    ) -> None:
+        self.strike = strike
+        self.spot = spot
+        self.domestic_rate = domestic_rate
+        self.foreign_rate = foreign_rate
+        self.volatility = volatility
+        self.tau = time_to_expiry
+
+    @property
+    def price(self):
+        return np.exp(-self.domestic_rate * self.tau) * self.strike * norm.cdf(
+            -self.d2
+        ) - np.exp(-self.foreign_rate * self.tau) * self.spot * norm.cdf(-self.d1)
+
+    @property
+    def delta(self):
+        return -np.exp(-self.foreign_rate * self.tau) * norm.cdf(-self.d1)
+
+
+class BlackScholesOption:
+    def __init__(self, strike, spot, volatility, time_to_expiry, rate) -> None:
+        self.strike = strike
+        self.tau = time_to_expiry
+        self.spot = spot
+        self.vol = volatility
+        self.rate = rate
+        self.dividend_rate = 0
+
+    @property
+    def d1(self):
+        return np.log(self.spot / self.strike) + (0.5 * self.vol**2) * self.tau / (
+            self.vol * np.sqrt(self.time_to_expiry)
+        )
+
+    @property
+    def d2(self):
+        return self.d1 - self.vol * np.sqrt(self.time_to_expiry)
+
+    def update(self, spot, volatility, time_to_expiry, rate):
+        self.spot = spot
+        self.vol = volatility
+        self.tau = time_to_expiry
+        self.rate = rate
+
+
+class PutOption(BlackScholesOption):
+    def __init__(self, strike, spot, volatility, time_to_expiry, rate) -> None:
+        self.strike = strike
+        self.tau = time_to_expiry
+        self.spot = spot
+        self.vol = volatility
+        self.rate = rate
+
+    @property
+    def price(self):
+        return self.strike * np.exp(-self.rate * self.tau) * norm.cdf(
+            -self.d2
+        ) - self.spot * norm.cdf(-self.d1)
+
+    @property
+    def delta(self):
+        return -norm.cdf(-self.d1)
+
+
+class CallOption(BlackScholesOption):
+    def __init__(self, strike, spot, volatility, time_to_expiry, rate) -> None:
+        self.strike = strike
+        self.tau = time_to_expiry
+        self.spot = spot
+        self.vol = volatility
+        self.rate = rate
+
+    @property
+    def price(self):
+        return self.spot * norm.cdf(self.d1) - self.strike * np.exp(
+            -self.rate * self.tau
+        ) * norm.cdf(self.d2)
+
+    @property
+    def delta(self):
+        return norm.cdf(self.d1)
+
+
+class DeltaHedgerFX(gym.Env):
     def __init__(
         self,
         data,
@@ -62,7 +159,7 @@ class DeltaHedger(gym.Env):
         expiry=252,
         n_lags=10,
         transaction_cost=0.0025,
-        test=False
+        test=False,
     ):
         super().__init__()
         self.data = data
@@ -73,7 +170,9 @@ class DeltaHedger(gym.Env):
                 self.data.iloc[i : i + expiry] for i, _ in enumerate(self.data.index)
             ]
         self.action_space = spaces.Box(low=-100, high=100, shape=(1,))
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(n_lags, 8))
+        self.observation_space = spaces.Box(
+            low=-np.inf, high=np.inf, shape=(n_lags, 15)
+        )
         self.initial_balance_multiplier = initial_balance
         self.transaction_cost = transaction_cost
         self.current_step = 0
@@ -116,33 +215,48 @@ class DeltaHedger(gym.Env):
         else:
             self.period = self.periods[0]
         self.spot = self.period["Close"].iloc[0]
-        self.rate = 0.05
-        self.strike = self.spot * np.exp(self.rate)
-        self.time_to_expiry = len(self.period)
-        self.volatility = self.period["volatility"].iloc[0]
 
-        self.put_option = PutOption(self.strike, 1)
-        self.call_option = CallOption(self.strike, 1)
+        self.tau = self.expiry / 252
+        self.volatility = self.period["volatility"].iloc[0]
+        self.usd_rate = self.period["usd_rate"].iloc[0]
+        self.jpy_rate = self.period["jpy_rate"].iloc[0]
+        self.rate = self.jpy_rate
+        self.strike = self.spot * np.exp(self.usd_rate - self.jpy_rate)
+        self.cutting_indicator = self.period["cutting_indicator"].iloc[0]
+        self.hiking_indicator = self.period["hiking_indicator"].iloc[0]
+        self.unch_aft_cut_indicator = self.period["unch_aft_cut_indicator"].iloc[0]
+        self.unch_aft_hike_indicator = self.period["unch_aft_hike_indicator"].iloc[0]
+        self.put_option = GarmanKohlhagenPut(
+            self.strike,
+            self.spot,
+            self.volatility,
+            self.expiry / 252,
+            self.usd_rate,
+            self.jpy_rate,
+        )
+        self.call_option = GarmanKohlhagenCall(
+            self.strike,
+            self.spot,
+            self.volatility,
+            self.expiry / 252,
+            self.usd_rate,
+            self.jpy_rate,
+        )
         self.straddle_size = 100
-        self.call_value = (
-            self.call_option.price(self.spot, self.volatility, self.rate)
-            * self.straddle_size
-        )
-        self.put_value = (
-            self.put_option.price(self.spot, self.volatility, self.rate)
-            * self.straddle_size
-        )
+        self.call_value = self.call_option.price * self.straddle_size
+        self.put_value = self.put_option.price * self.straddle_size
         self.initial_balance = (
             self.put_value
             + self.call_value
             + self.initial_balance_multiplier * self.spot
         )
         self.balance = self.initial_balance
-        self.put_delta = self.put_option.delta(self.spot, self.volatility)
-        self.call_delta = self.call_option.delta(self.spot, self.volatility)
+        self.put_delta = self.put_option.delta * self.straddle_size
+        self.call_delta = self.call_option.delta * self.straddle_size
         self.log_ret = 0
         self.state_buffer = deque([], self.buffer_len)
         self.paid_slippage = 0
+
         state_frame = self._get_state_frame()
         while len(self.state_buffer) < self.buffer_len:
             self.state_buffer.append(state_frame)
@@ -154,6 +268,13 @@ class DeltaHedger(gym.Env):
                 self.spot,
                 self.strike,
                 self.portfolio_delta,
+                self.hiking_indicator,
+                self.unch_aft_hike_indicator,
+                self.cutting_indicator,
+                self.unch_aft_cut_indicator,
+                self.volatility,
+                self.usd_rate,
+                self.jpy_rate,
                 self.options_delta,
                 self.hedge_delta,
                 self.call_value,
@@ -172,34 +293,31 @@ class DeltaHedger(gym.Env):
             amount * sign * self.spot * np.sign(self.net_leverage)
             + amount * self.spot * self.transaction_cost
         )
-        if (
+        trading_cond = (
             (abs(targeted_delta) < 5 or abs(targeted_delta) < abs(self.portfolio_delta))
             and (self.current_portfolio_value > targeted_cost)
             and self.balance > targeted_cost
-        ):
-            self.paid_slippage = amount * self.spot * self.transaction_cost
-            self.net_leverage += amount * sign
-            self.balance -= amount * sign * self.spot + self.paid_slippage
+        )
+        while amount > 0 and not trading_cond:
+            amount -= 1
+        self.paid_slippage = amount * self.spot * self.transaction_cost
+        self.net_leverage += amount * sign
+        self.balance -= amount * sign * self.spot + self.paid_slippage
 
     def _update_options(self) -> None:
         self.prev_put_value = self.put_value
         self.prev_call_value = self.call_value
-        self.put_option.time_to_expiry -= 1 / self.expiry
-        self.call_option.time_to_expiry -= 1 / self.expiry
-        self.call_value = (
-            self.call_option.price(self.spot, self.volatility, self.rate)
-            * self.straddle_size
+        self.tau -= 1 / 252
+        self.put_option.update(
+            self.spot, self.volatility, self.tau, self.usd_rate, self.jpy_rate
         )
-        self.put_value = (
-            self.put_option.price(self.spot, self.volatility, self.rate)
-            * self.straddle_size
+        self.call_option.update(
+            self.spot, self.volatility, self.tau, self.usd_rate, self.jpy_rate
         )
-        self.call_delta = (
-            self.call_option.delta(self.spot, self.volatility) * self.straddle_size
-        )
-        self.put_delta = (
-            self.put_option.delta(self.spot, self.volatility) * self.straddle_size
-        )
+        self.call_value = self.call_option.price * self.straddle_size
+        self.put_value = self.put_option.price * self.straddle_size
+        self.call_delta = self.call_option.delta * self.straddle_size
+        self.put_delta = self.put_option.delta * self.straddle_size
         option_pnl = (self.prev_put_value - self.put_value) + (
             self.prev_call_value - self.call_value
         )
@@ -220,6 +338,19 @@ class DeltaHedger(gym.Env):
         self.prev_spot = self.spot
         self.spot = self.period["Close"].iloc[self.current_step]
         self.volatility = self.period["volatility"].iloc[self.current_step]
+        self.usd_rate = self.period["usd_rate"].iloc[self.current_step]
+        self.jpy_rate = self.period["jpy_rate"].iloc[self.current_step]
+        self.cutting_indicator = self.period["cutting_indicator"].iloc[
+            self.current_step
+        ]
+        self.hiking_indicator = self.period["hiking_indicator"].iloc[self.current_step]
+        self.unch_aft_cut_indicator = self.period["unch_aft_cut_indicator"].iloc[
+            self.current_step
+        ]
+        self.unch_aft_hike_indicator = self.period["unch_aft_hike_indicator"].iloc[
+            self.current_step
+        ]
+        self.rate = self.jpy_rate
         sign = 1 if action[0] > 0 else -1
         amount = np.abs(action[0])
         self._accrue_interest()
@@ -294,19 +425,22 @@ class DeltaHedger(gym.Env):
 
 
 if __name__ == "__main__":
-    df = pd.read_csv("NVDA_ohlcv.csv", index_col=0, parse_dates=True)
-    train = df.iloc[:-252]
-    test = df.iloc[-252:]
-    mfile = "delta_hedger"
-    env = DeltaHedger(train)
-    log_dir = "log/"
+    expiry = 252
+    df = pd.read_csv("data/usdjpy_ohlc.csv", index_col=0, parse_dates=True)
+    train = df.iloc[:-expiry]
+    test = df.iloc[-expiry:]
+    mfile = f"delta_hedger_{expiry}d"
+    env = DeltaHedgerFX(train, expiry=expiry)
+    log_dir = f"log/{expiry}_days/"
     env = Monitor(env, log_dir, override_existing=False)
-    # model_train = PPO("MlpLstmPolicy", env, verbose=1)
-    model_train = PPO.load("ppo_delta_hedger", env=env)
+    try:
+        model_train = PPO.load(f"ppo_delta_hedger_usdjpy_{expiry}d", env=env)
+    except:
+        model_train = PPO("MlpLstmPolicy", env, verbose=1)
     model_train.learn(total_timesteps=10000, progress_bar=True)
-    model_train.save("ppo_delta_hedger")
-    env_test = DeltaHedger(test, expiry=252, test=True)
-    model_test = PPO.load("ppo_delta_hedger", env=env_test)
+    model_train.save(f"ppo_delta_hedger_usdjpy_{expiry}d")
+    env_test = DeltaHedgerFX(test, expiry=expiry, test=True)
+    model_test = PPO.load(f"ppo_delta_hedger_usdjpy_{expiry}d", env=env_test)
     vec_env = model_test.get_env()
     obs = vec_env.reset()
     lstm_states = None
@@ -319,4 +453,4 @@ if __name__ == "__main__":
         obs, reward, done, info = vec_env.step(action)
         if done:
             break
-    env_test.render_df.to_csv("ppo_delta_hedger.csv")
+    env_test.render_df.to_csv(f"ppo_delta_hedger_usdjpy_{expiry}d.csv")

@@ -7,15 +7,17 @@ import matplotlib.pyplot as plt
 from river import forest, preprocessing, feature_extraction
 from tqdm import trange
 
-df = pd.read_csv("ty_ohlc.csv", index_col=0, parse_dates=True)
+df = pd.read_csv("data/usdjpy_ohlc.csv", index_col=0, parse_dates=True)
 diffs = np.log(df["Close"]).diff().dropna()
 squared_diff = diffs.pow(2).rename("squared_diff")
 level = df["Close"].loc[diffs.index]
+indics = ['hiking_indicator', 'unch_aft_hike_indicator', 'cutting_indicator', 'unch_aft_cut_indicator', 'nfp_indic', 'cpi_indic', 'monthend_indic', 'jpy_rate', 'usd_rate']
 n_lags = 5
 x = pd.concat(
     [squared_diff] 
     + [level.shift(1)] 
-    + [diffs.shift(i).rename(str(i)) for i in range(1, n_lags + 1)],
+    + [diffs.shift(i).rename(str(i)) for i in range(1, n_lags + 1)]
+    + [df[indic].shift(1) for indic in indics],
     axis=1,
 ).fillna(0)
 y = x.pop("squared_diff")
@@ -50,10 +52,10 @@ with open(f'volatility_model.pkl', 'wb') as f:
 with open(f'volatility_model.pkl', 'rb') as f:
     volatility_model = pickle.load(f)
 
-upper_band = pd.Series(upper_band, index=level.index[1:])
-lower_band = pd.Series(lower_band, index=level.index[1:])
-vol_ests = pd.Series(vol_ests, index=level.index[1:])
-vol_ests.to_csv('NVDA_vol_ests.csv')
+upper_band = pd.Series(upper_band, index=level.index)
+lower_band = pd.Series(lower_band, index=level.index)
+vol_ests = pd.Series(vol_ests, index=level.index) * np.sqrt(252)
+vol_ests.to_csv('usdjpy_vol_ests.csv')
 
 plt.figure(figsize=(12, 6))
 plt.plot(level.iloc[-100:], label="Level", c="k")
