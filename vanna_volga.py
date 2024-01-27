@@ -294,133 +294,15 @@ class VannaVolga:
 
 if __name__ == "__main__":
 
-    spot = 1.5
-    # Time tenor points
-    tenors = np.array(
-        [
-            0.0192,
-            0.0384,
-            0.0877,
-            0.1726,
-            0.2493,
-            0.3333,
-            0.4166,
-            0.5,
-            0.75,
-            1,
-            1.25,
-            1.5,
-            2,
-            3,
-            4,
-            5,
-        ]
-    )
+    spot = 1.21
+    data = pd.read_csv('data/vanna_volga_calib.csv')
+    tenors = data['tenor'].values
+    domestic_rates = data['domestic_rate'].values
+    foreign_rates = data['foreign_rate'].values
+    vol_atm = data['atm_vol'].values
+    vol_25d_put = data['put_vol'].values
+    vol_25d_call = data['call_vol'].values
 
-    # Hypothetical volatility quotes for three most liquid points on the vol surface 25D Put, 25D Call and ATM
-    vol_25d_put = np.array(
-        [
-            0.121,
-            0.1215,
-            0.1105,
-            0.113,
-            0.1224,
-            0.1236,
-            0.125,
-            0.116,
-            0.1175,
-            0.1322,
-            0.136,
-            0.14,
-            0.1411,
-            0.1433,
-            0.1445,
-            0.145,
-        ]
-    )
-    vol_25d_call = np.array(
-        [
-            0.121,
-            0.1215,
-            0.1105,
-            0.113,
-            0.1224,
-            0.1236,
-            0.125,
-            0.116,
-            0.1175,
-            0.1322,
-            0.136,
-            0.14,
-            0.1411,
-            0.1433,
-            0.1445,
-            0.145,
-        ]
-    )
-    vol_atm = np.array(
-        [
-            0.118,
-            0.1182,
-            0.1015,
-            0.1029,
-            0.115,
-            0.116,
-            0.118,
-            0.105,
-            0.108,
-            0.121,
-            0.124,
-            0.132,
-            0.135,
-            0.1375,
-            0.14,
-            0.141,
-        ]
-    )
-
-    # Hypothetical interest rates in two currencies
-    domestic_rates = np.array(
-        [
-            0.005,
-            0.0052,
-            0.0059,
-            0.006,
-            0.0063,
-            0.0069,
-            0.007,
-            0.0072,
-            0.0075,
-            0.0077,
-            0.008,
-            0.0085,
-            0.009,
-            0.00925,
-            0.0095,
-            0.0098,
-        ]
-    )
-
-    foreign_rates = np.array(
-        [
-            0.0043,
-            0.004,
-            0.005,
-            0.0055,
-            0.0068,
-            0.0071,
-            0.0066,
-            0.0078,
-            0.0085,
-            0.0083,
-            0.0088,
-            0.0079,
-            0.0082,
-            0.0087,
-            0.0093,
-            0.0095,
-        ]
-    )
 
     # Creating curves for interest rates and volatility
     domestic_curve = Curve(tenors, domestic_rates)
