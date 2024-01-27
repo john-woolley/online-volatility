@@ -331,6 +331,7 @@ class DeltaHedgerFX(gym.Env):
 
     def _accrue_interest(self) -> None:
         self.balance *= 1 + (self.rate / self.expiry)
+        self.net_leverage *= 1 + (self.usd_rate / self.expiry)
 
     def step(self, action) -> tuple:
         self.prev_portfolio_value = self.current_portfolio_value
